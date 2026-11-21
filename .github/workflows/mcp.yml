@@ -1,0 +1,26 @@
+name: Build MCP server
+on:
+  push:
+    branches: [main]
+    paths: ['mcp/**', 'src/core/**', 'src/types.ts', 'src/lib/**']
+    tags: ['mcp-v*']
+  workflow_dispatch:
+permissions:
+  contents: write   # タグ時にリリースへ添付するため
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mcp } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: mcp/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: selfdesk-mcp, path: mcp/dist/selfdesk-mcp.mjs }
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/mcp-v')
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: gh release create "${GITHUB_REF_NAME}" dist/selfdesk-mcp.mjs --title "SelfDesk MCP ${GITHUB_REF_NAME#mcp-v}" --notes "単一ファイルのMCPサーバー。node selfdesk-mcp.mjs で起動します。" --repo "${GITHUB_REPOSITORY}"
