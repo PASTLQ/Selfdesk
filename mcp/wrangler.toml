@@ -1,0 +1,8 @@
+name = "selfdesk-mcp"
+main = "src/worker.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# 秘密の値(SELFDESK_GITHUB_TOKEN / SELFDESK_REPO / SELFDESK_MCP_SECRET)は wrangler.toml に書かない。
+# GitHub Actions の Secrets から自動で設定される(.github/workflows/mcp-remote.yml)。

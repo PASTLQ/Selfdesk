@@ -1,0 +1,32 @@
+name: Deploy remote MCP (Cloudflare Workers)
+# スマホ/Web の Claude から使うリモート版。セットアップは docs/AI_CONNECT.md。
+# リポジトリの Variables に ENABLE_REMOTE_MCP=true を作るまでは、push では動かない(手動実行はいつでも可)。
+on:
+  push:
+    branches: [main]
+    paths: ['mcp/**', 'src/core/**', 'src/collections/**', 'src/types.ts', 'src/lib/**']
+  workflow_dispatch:
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ENABLE_REMOTE_MCP == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: mcp/package-lock.json }
+      - run: npm ci && npm run typecheck
+        working-directory: mcp
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: mcp
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          secrets: |
+            SELFDESK_GITHUB_TOKEN
+            SELFDESK_REPO
+            SELFDESK_MCP_SECRET
+        env:
+          SELFDESK_GITHUB_TOKEN: ${{ secrets.SELFDESK_DATA_TOKEN }}
+          SELFDESK_REPO: ${{ secrets.SELFDESK_DATA_REPO }}
+          SELFDESK_MCP_SECRET: ${{ secrets.SELFDESK_MCP_SECRET }}

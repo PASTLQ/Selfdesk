@@ -57,7 +57,7 @@ claude mcp add selfdesk -e SELFDESK_GITHUB_TOKEN=github_pat_... -e SELFDESK_REPO
 
 接続後は「今日の予定とタスクを見て、空き時間にタイムブロックして」「この議事録からロジックツリーを作って」のように頼めます。アプリへの反映は、次の同期(最大45秒、タブを開き直した時は即時)です。
 
-#### MCPのツール(30個)
+#### MCPのツール(48個)。スマホ・Webの Claude から使うには、リモート版 → [docs/AI_CONNECT.md](docs/AI_CONNECT.md)
 | 分類 | ツール |
 |---|---|
 | 把握 | `get_overview` `list_tasks` `get_task` `list_events` `find_free_slots` `list_habits` `list_notes` `get_note` `get_review` |
@@ -74,7 +74,7 @@ Googleカレンダーの予定は MCP 経由のデータには含まれません
 - オフラインでも使え、再接続時に同期されます
 - `data.json` はGitHubのコミット履歴に残るので、誤操作しても過去の版に戻せます
 - 大きなホワイトボードを大量に作ると `data.json` が肥大します(数MBまでは問題ありません)
-- MCPサーバーは**自分のPC上で動くローカルプロセス**です。Claude のスマホアプリ/Webからは使えません(その場合はリモートMCPサーバーのホスティングが別途必要です)
+- ここで説明したMCPサーバーは**自分のPC上で動くローカルプロセス**です。スマホ/Webの Claude からは、Cloudflare Workers に置く**リモート版**を使います(手順は [docs/AI_CONNECT.md](docs/AI_CONNECT.md))
 
 ## 開発
 ```
@@ -87,3 +87,9 @@ npm run build        # 型検査 + dist/
 
 ## 見た目・機能の拡張
 色・密度・スキンは「設定 > 外観」から変更できます。画面や「今日」の部品、⌘Kコマンドの追加方法は [docs/EXTENDING.md](docs/EXTENDING.md) を参照してください。⌘K(Windows は Ctrl+K)で検索・移動・タスク追加ができます。
+
+
+## プロジェクト・やりたいこと・ツールの追加
+- **プロジェクト**: 目標と完了条件を持つ項目。階層(WBS)・マイルストーン・進捗を持てます。プロジェクト/タスク/Todoの境界は主観なので、同じ1本のツリーで扱い、あとから昇格・降格できます
+- **やりたいこと**: 義務ではない願望のリスト。「やる」と決めたらプロジェクトに昇格でき、達成すると記録が残ります
+- **新しいツールの追加**: データの置き場所と守るべき規約は [docs/GOVERNANCE.md](docs/GOVERNANCE.md)。`npm run check` で検査できます

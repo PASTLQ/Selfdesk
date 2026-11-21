@@ -1,0 +1,9 @@
+# SelfDesk — Claude への作業指針
+Kai の生活管理アプリ(React + Vite、データは GitHub の data.json、AI連携は MCP)。**新しいツール・機能を作る前に docs/GOVERNANCE.md を読み、同じ手順で進める。**
+
+- データ: プロジェクト/タスク/Todo は1本の階層ツリー(`Task.parent`、`isProject`)。願望は `Wish`。新しい種類のデータは `src/collections/` のコレクション。自前の localStorage・別ファイル・別アプリにデータを持たない。
+- 他の項目との関係は `Ref`(`{kind,id}`)で持つ。スキーマは追加のみ。変更したら `docs/CHANGELOG-DATA.md` に1行残す。
+- 画面: `src/extensions/` に拡張として足す。色・余白は `src/theme/tokens.css` の変数のみ(色リテラル禁止)。
+- AI連携: SelfDesk が正。MCP ツールは `mcp/src/tools.ts`(説明文に「いつ使うか」を書く)。コレクションは `collection_*` で自動対応。
+- 完了前に `npm run check`(ルール検査・型・テスト)を通す。デザインは A案 Quiet Pro(Linear 系)。
+- 依頼を受けたら、GOVERNANCE.md の「5. 新ツールを作る前の確認」を先に答える。

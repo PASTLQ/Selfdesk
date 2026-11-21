@@ -10,7 +10,7 @@ import { Palette } from './Palette'
 import { Sheet } from '../ui'
 import { TaskSheet } from '../views/TaskSheet'
 
-const GROUPS: Record<string, string> = { main: '', plan: '整理', log: '記録' }
+const GROUPS: Record<string, string> = { main: '', plan: '整理', log: '記録', tools: 'ツール' }
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function Shell() {

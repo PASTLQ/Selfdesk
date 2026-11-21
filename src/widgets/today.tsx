@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useStore, addTask } from '../store'
+import { useActionable, useProjects } from '../lib/projects'
+import { fmtShort } from '../lib/date'
 import { parseQuick } from '../lib/quick'
 import { today, hm, dow } from '../lib/date'
 import { TaskRow } from '../views/Tasks'
@@ -7,10 +9,11 @@ import { HabitChecks } from '../views/Habits'
 import { registerWidget } from '../registry'
 import { openTask } from '../ui-state'
 import { go } from '../route'
+import { descendants } from '../core/tree'
 
 /** 「今日」画面の共通データ。ウィジェットから使える(自作ウィジェットも useToday() で同じ値を取れる) */
 export function useToday() {
-  const tasks = useStore(s => s.tasks); const events = useStore(s => s.events); const g = useStore(s => s.gEvents); const habits = useStore(s => s.habits)
+  const tasks = useActionable(); const events = useStore(s => s.events); const g = useStore(s => s.gEvents); const habits = useStore(s => s.habits)
   const td = today()
   const list = tasks.filter(t => !t.done && ((t.due && t.due <= td) || t.block?.date === td))
   const doneToday = tasks.filter(t => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString()).length
@@ -60,8 +63,17 @@ function TodayTasks() {
 
 function TodayHabits() { const { hs, td } = useToday(); return hs.length ? <HabitChecks habits={hs} date={td} /> : <p className="muted">今日の習慣はありません。</p> }
 
+function ProjectsWidget() {
+  const ps = useProjects().filter(x => !x.p.done).slice(0, 4); const tasks = useStore(s => s.tasks)
+  if (!ps.length) return <p className="muted">進行中のプロジェクトはありません。</p>
+  return <div className="rows">{ps.map(({ p, r }) => { const m = tasks.filter(t => t.milestone && !t.done && t.due && descOf(tasks, p.id).has(t.id)).sort((a, b) => a.due!.localeCompare(b.due!))[0]
+    return <a key={p.id} className="row-link" href={'#/projects/' + p.id}><span className="grow"><b style={{ fontWeight: 560 }}>{p.title}</b>{m && <span className="small muted"> ◆ {m.title} {fmtShort(m.due!)}</span>}<div className="track" style={{ marginTop: 6 }}><i style={{ width: r.pct + '%' }} /></div></span><span className="small muted" style={{ marginLeft: 12 }}>{r.pct}%</span></a> })}</div>
+}
+const descOf = (tasks: import('../types').Task[], id: string) => new Set(descendants(tasks, id).map(d => d.id))
+
 registerWidget({ id: 'progress', title: '進み具合', span: 'full', heading: false, order: 10, component: Progress })
 registerWidget({ id: 'quick', title: 'クイック追加', span: 'full', heading: false, order: 20, component: QuickAdd })
 registerWidget({ id: 'timeline', title: 'タイムライン', span: 'half', order: 30, component: Timeline })
 registerWidget({ id: 'tasks', title: 'やること', span: 'half', order: 40, component: TodayTasks })
+registerWidget({ id: 'projects', title: 'プロジェクト', span: 'half', order: 45, component: ProjectsWidget })
 registerWidget({ id: 'habits', title: '今日の習慣', span: 'full', order: 50, component: TodayHabits })

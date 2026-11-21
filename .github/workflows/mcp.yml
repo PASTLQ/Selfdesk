@@ -2,7 +2,7 @@ name: Build MCP server
 on:
   push:
     branches: [main]
-    paths: ['mcp/**', 'src/core/**', 'src/types.ts', 'src/lib/**']
+    paths: ['mcp/**', 'src/core/**', 'src/collections/**', 'src/types.ts', 'src/lib/**']
     tags: ['mcp-v*']
   workflow_dispatch:
 permissions:

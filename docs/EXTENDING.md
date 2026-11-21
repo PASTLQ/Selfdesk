@@ -7,7 +7,8 @@
 | 色・角丸・密度・文字サイズ | 設定 > 外観(または `src/theme/tokens.css`) | 不要 |
 | 見た目の一括切替(スキン) | `registerSkin()` | CSSのみ |
 | 画面・「今日」の部品・⌘Kコマンドの追加 | `src/extensions/*.tsx` に1ファイル追加 | 1ファイル |
-| データの形(項目の追加) | `src/types.ts` → `src/core/merge.ts` → `mcp/src/server.ts` | 要(下記) |
+| 新しい種類のデータ(読書ログ等) | `src/collections/` にスキーマを書く(同期・AI・一覧画面が自動で付く) | スキーマのみ → [GOVERNANCE.md](GOVERNANCE.md) |
+| 既存データの形(項目の追加) | `src/types.ts` → `src/core/merge.ts` → `mcp/src/tools.ts` | 要(下記) |
 
 ## 1. デザイントークン(`src/theme/tokens.css`)
 すべての部品は変数だけで色・余白・角丸を決めています。リテラルの色は書かないでください。
@@ -46,6 +47,6 @@ registerSkin({ id, label, css })                                                
 ## 4. データの項目を増やす(同期・MCPに関わる)
 1. `src/types.ts` に項目を足す(省略可能 `?` にすると古いデータと互換)
 2. 画面側で読み書きする(`patchTask` など。`u`(更新時刻)は自動で付きます)
-3. AI から扱わせたいときは `mcp/src/server.ts` にツールを足す(`npm run build:mcp`)
+3. AI から扱わせたいときは `mcp/src/tools.ts` にツールを足す(`npm run build:mcp`)
 
 設定(`settings`)は端末ごとのローカル保存で、同期されません。端末をまたいで共有したい値は `Data` 側に置いてください。

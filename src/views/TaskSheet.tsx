@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { Sheet } from '../ui'
-import { useStore, patchTask, delTask, get } from '../store'
+import { useStore, patchTask, delTask, moveTask, promoteProject, demoteProject } from '../store'
+import { parentOptions } from '../lib/projects'
+import { hasChildren } from '../core/tree'
 import { uid, hm, fromHm } from '../lib/date'
 import type { Task } from '../types'
 
 export function TaskSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const t = useStore(s => s.tasks.find(x => x.id === id))
-  const projects = useStore(s => s.projects)
+  const all = useStore(s => s.tasks)
   const [sub, setSub] = useState('')
   if (!t) return null
   const p = (x: Partial<Task>) => patchTask(id, x)
   return (
-    <Sheet title="タスクの詳細" onClose={onClose}>
+    <Sheet title={t.isProject ? "プロジェクトの詳細" : "タスクの詳細"} onClose={onClose}>
       <div className="stack">
         <div className="field"><label htmlFor="tt">タイトル</label><input id="tt" type="text" data-autofocus value={t.title} onChange={e => p({ title: e.target.value })} /></div>
         <div className="row">
@@ -19,9 +21,18 @@ export function TaskSheet({ id, onClose }: { id: string; onClose: () => void }) 
           <div className="field grow"><label htmlFor="td">期限</label><input id="td" type="date" value={t.due || ''} onChange={e => p({ due: e.target.value || undefined })} /></div>
         </div>
         <div className="row">
-          <div className="field grow"><label htmlFor="tj">プロジェクト</label><input id="tj" type="text" list="projlist" value={t.project} onChange={e => p({ project: e.target.value })} /><datalist id="projlist">{projects.map(x => <option key={x} value={x} />)}</datalist></div>
-          <div className="field grow"><label htmlFor="te">見積(分)</label><input id="te" type="number" min={0} step={5} value={t.est ?? ''} onChange={e => p({ est: e.target.value ? Number(e.target.value) : undefined })} /></div>
+          <div className="field grow"><label htmlFor="tj">親(プロジェクト/タスク)</label><div className="sel"><select id="tj" value={t.parent || ''} onChange={e => { if (!moveTask(id, e.target.value || undefined)) alert('自分の子孫は親にできません') }}><option value="">なし(トップ)</option>{parentOptions(all, id).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></div></div>
+          <div className="field grow"><label htmlFor="te">見積(分)</label><input id="te" type="number" min={0} step={5} value={t.est ?? ''} disabled={hasChildren(all, id)} title={hasChildren(all, id) ? '子の見積の合計が使われます' : ''} onChange={e => p({ est: e.target.value ? Number(e.target.value) : undefined })} /></div>
         </div>
+        <div className="row">
+          <div className="field grow"><label htmlFor="ts">開始日</label><input id="ts" type="date" value={t.start || ''} onChange={e => p({ start: e.target.value || undefined })} /></div>
+          <label className="switch-row grow"><span><b>マイルストーン</b><small>節目(◆)として扱う</small></span><input className="switch" type="checkbox" checked={!!t.milestone} onChange={e => p({ milestone: e.target.checked })} /></label>
+        </div>
+        <label className="switch-row"><span><b>プロジェクトとして扱う</b><small>目標と完了条件を持つ単位。あとからいつでも切り替えられます</small></span><input className="switch" type="checkbox" checked={!!t.isProject} onChange={e => e.target.checked ? promoteProject(id) : demoteProject(id)} /></label>
+        {t.isProject && <>
+          <div className="field"><label htmlFor="tgo">目標(何を達成したいか)</label><textarea id="tgo" value={t.goal || ''} onChange={e => p({ goal: e.target.value })} /></div>
+          <div className="field"><label htmlFor="tdw">完了条件(どうなったら終わりか)</label><textarea id="tdw" value={t.doneWhen || ''} onChange={e => p({ doneWhen: e.target.value })} /></div>
+        </>}
         <div className="row">
           <div className="field grow"><label htmlFor="tr">繰り返し</label><div className="sel"><select id="tr" value={t.repeat || ''} onChange={e => p({ repeat: (e.target.value || null) as Task['repeat'] })}><option value="">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option></select></div></div>
           <div className="field grow"><label htmlFor="tg">タグ(カンマ区切り)</label><input id="tg" type="text" value={t.tags.join(',')} onChange={e => p({ tags: e.target.value.split(/[,、]/).map(x => x.trim()).filter(Boolean) })} /></div>
@@ -51,4 +62,3 @@ export function TaskSheet({ id, onClose }: { id: string; onClose: () => void }) 
     </Sheet>
   )
 }
-export const projectsOf = () => get().projects

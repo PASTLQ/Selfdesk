@@ -40,7 +40,7 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
     for (const e of [...events, ...gEvents]) out.push({ key: 'e' + e.id, kind: 'event', id: e.id, title: e.title, date: e.date, start: e.start, dur: e.dur, google: e.source === 'google' || !!e.gid, allDay: e.allDay })
     return out
   }, [tasks, events, gEvents])
-  const unscheduled = tasks.filter(t => !t.done && !t.block).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || b.priority - a.priority).slice(0, 60)
+  const unscheduled = tasks.filter(t => !t.done && !t.block && !t.isProject && !tasks.some(x => x.parent === t.id)).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || b.priority - a.priority).slice(0, 60)
 
   const snap = (m: number) => Math.round(m / 15) * 15
   const moveTo = (data: { k: string; id: string }, date: string, start: number) => {
