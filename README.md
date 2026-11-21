@@ -83,3 +83,7 @@ npm run dev          # http://localhost:5173
 npm run build        # 型検査 + dist/
 ```
 主なキー操作 — ロジックツリー: Tab=子を追加 / Enter=兄弟を追加 / F2=編集 / Space=折りたたみ / 矢印=移動 / Delete=削除。タスク入力: `資料を作る !2 #仕事 @tag ~45m 明日`
+
+
+## 見た目・機能の拡張
+色・密度・スキンは「設定 > 外観」から変更できます。画面や「今日」の部品、⌘Kコマンドの追加方法は [docs/EXTENDING.md](docs/EXTENDING.md) を参照してください。⌘K(Windows は Ctrl+K)で検索・移動・タスク追加ができます。

@@ -19,7 +19,8 @@ export interface Note {
 }
 export interface Review { wins: string; lessons: string; next: string; mood: number; u?: number }
 export interface Settings {
-  theme: 'auto' | 'light' | 'dark'; dayStart: number; dayEnd: number
+  theme: 'auto' | 'light' | 'dark'; skin: string; accent: string; density: 'compact' | 'normal' | 'roomy'; fontScale: number
+  customCss: string; todayOrder: string[]; todayHidden: string[]; dayStart: number; dayEnd: number
   gClientId: string; gSync: boolean
   ghToken: string; ghRepo: string; ghPath: string; ghBranch: string
 }

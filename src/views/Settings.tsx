@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore, setSettings, get, replaceAll } from '../store'
-import { Seg } from '../ui'
+import { Appearance } from './Appearance'
 import * as G from '../lib/gcal'
 import { syncNow, useSyncStatus } from '../lib/sync'
 
@@ -11,11 +11,7 @@ export function Settings() {
   const imp = (f?: File) => { if (!f) return; f.text().then(t => { try { const j = JSON.parse(t); if (!confirm('現在のデータを読み込んだ内容で置き換えます。よろしいですか?')) return; replaceAll(j) } catch { alert('JSONを読み込めませんでした') } }) }
   return (
     <div className="stack" style={{ gap: 'var(--s5)' }}>
-      <section className="stack"><h2 className="sec-h">表示</h2>
-        <Seg value={s.theme} onChange={v => setSettings({ theme: v })} items={[['auto', '自動'], ['light', 'ライト'], ['dark', 'ダーク']]} />
-        <div className="row"><div className="field grow"><label htmlFor="ds">1日の開始(時)</label><input id="ds" type="number" min={0} max={20} value={s.dayStart} onChange={e => setSettings({ dayStart: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })} /></div>
-          <div className="field grow"><label htmlFor="de">1日の終了(時)</label><input id="de" type="number" min={4} max={24} value={s.dayEnd} onChange={e => setSettings({ dayEnd: Math.max(4, Math.min(24, Number(e.target.value) || 24)) })} /></div></div>
-      </section>
+      <Appearance />
       <hr className="rule" />
       <section className="stack"><h2 className="sec-h">同期(GitHub)</h2>
         <p className="small muted">データを非公開のGitHubリポジトリ(data.json)に保存し、すべての端末とMCPサーバーで共有します。</p>

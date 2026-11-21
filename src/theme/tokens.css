@@ -1,0 +1,111 @@
+/* ==========================================================================
+   SelfDesk design tokens  (Quiet Pro)
+   層: 1) 基本色  2) 意味トークン  3) スキン  4) 密度  5) 互換エイリアス
+   見た目を変えるときは、まずここ(または 設定 > 外観 > カスタムCSS)の変数だけを触る。
+   ========================================================================== */
+@layer tokens, skin;
+
+@layer tokens {
+:root {
+  /* --- 意味トークン(ライト) --- */
+  --bg: #ffffff;          /* ページ背景 */
+  --surface: #ffffff;     /* 面(カード・シート) */
+  --surface-2: #f4f4f5;   /* 淡い塗り(ホバー・空欄・井戸) */
+  --sidebar: #fafafa;
+  --border: #e4e4e7;      /* 区切り線 */
+  --edge: #8a8a94;        /* 入力欄・チェックの縁 (対 bg 3:1 以上) */
+  --fg: #18181b;
+  --muted: #6b6b76;       /* 補助文字 (4.5:1 以上) */
+  --ok: #15803d;
+  --ng: #b42318;
+  --warn: #a15c07;
+  --scrim: rgba(15, 15, 20, .4);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .14), 0 0 0 1px var(--border);
+
+  /* --- アクセント: 設定から --accent-base が差し込まれる --- */
+  --accent-base: #5b5bd6;
+  --accent: var(--accent-base);
+  --accent-fg: var(--accent-fg-l, #ffffff);
+  --accent-soft: color-mix(in srgb, var(--accent) 11%, var(--bg));
+  --accent-line: color-mix(in srgb, var(--accent) 45%, var(--bg));
+
+  /* --- 文字 (rem 基準。設定の文字サイズで全体が伸縮する) --- */
+  --font: "Inter", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK JP", monospace;
+  --t-xs: .75rem; --t-sm: .8125rem; --t-md: .875rem; --t-lg: 1rem; --t-xl: 1.25rem; --t-2xl: 1.5rem; --t-hero: 4rem;
+
+  /* --- 余白・角丸 --- */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 36px;
+  --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-full: 999px;
+  --dur: .12s;
+
+  /* --- 密度 (data-density で切り替え) --- */
+  --ctl-h: 34px;   /* ボタン・入力欄の高さ */
+  --row-h: 40px;   /* リスト行の最小高さ */
+  --hit: 0px;      /* タッチ端末では 44px */
+  --gap-page: 24px;
+
+  /* --- 互換エイリアス (旧 Desk 2 のクラスや拡張がそのまま動くように) --- */
+  --ink: var(--accent); --on-ink: var(--accent-fg);
+  --groove-d: var(--border); --groove-l: transparent;
+  --sh-d: rgba(0, 0, 0, .12); --sh-l: transparent;
+  --raise: 0 1px 2px rgba(0, 0, 0, .05), 0 0 0 1px var(--border);
+  --raise-sm: 0 0 0 1px var(--border);
+  --sink: inset 0 0 0 1px var(--border);
+  --sink-sm: inset 0 0 0 1px var(--border);
+  --measure: 720px;
+  color-scheme: light;
+}
+
+/* --- ダーク (自動) --- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0e10; --surface: #161618; --surface-2: #1f1f23; --sidebar: #121214;
+    --border: #2a2a30; --edge: #7a7a86; --fg: #ececef; --muted: #a1a1ab;
+    --ok: #6ee7a0; --ng: #ff9b92; --warn: #f2b45a; --scrim: rgba(0, 0, 0, .6);
+    --accent: color-mix(in srgb, var(--accent-base) 70%, #fff); --accent-fg: #0e0e10;
+    --sh-d: rgba(0, 0, 0, .5);
+    color-scheme: dark;
+  }
+}
+/* --- ダーク (手動) --- */
+:root[data-theme="dark"] {
+  --bg: #0e0e10; --surface: #161618; --surface-2: #1f1f23; --sidebar: #121214;
+  --border: #2a2a30; --edge: #7a7a86; --fg: #ececef; --muted: #a1a1ab;
+  --ok: #6ee7a0; --ng: #ff9b92; --warn: #f2b45a; --scrim: rgba(0, 0, 0, .6);
+  --accent: color-mix(in srgb, var(--accent-base) 70%, #fff); --accent-fg: #0e0e10;
+  --sh-d: rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+
+}
+
+@layer skin {
+/* ==========================================================================
+   スキン: data-skin で面の質感だけを差し替える。自作スキンは registerSkin() で追加。
+   ========================================================================== */
+:root[data-skin="paper"] {
+  --bg: #f6f2ea; --surface: #fffdf8; --surface-2: #efe9dd; --sidebar: #f1ece1;
+  --border: #e3dccb; --edge: #8a8170; --fg: #26231d; --muted: #6b6558;
+  --r-sm: 8px; --r: 12px; --r-lg: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin="paper"]:not([data-theme="light"]) {
+    --bg: #181612; --surface: #211f19; --surface-2: #2a2720; --sidebar: #14120e;
+    --border: #38342a; --edge: #857e6c; --fg: #efebe0; --muted: #ada692;
+  }
+}
+:root[data-skin="paper"][data-theme="dark"] {
+  --bg: #181612; --surface: #211f19; --surface-2: #2a2720; --sidebar: #14120e;
+  --border: #38342a; --edge: #857e6c; --fg: #efebe0; --muted: #ada692;
+}
+
+/* ==========================================================================
+   密度
+   ========================================================================== */
+:root[data-density="compact"] { --ctl-h: 30px; --row-h: 34px; --gap-page: 16px; }
+:root[data-density="roomy"]   { --ctl-h: 40px; --row-h: 48px; --gap-page: 32px; }
+@media (pointer: coarse) { :root { --hit: 44px; } }
+}
+
+html { font-size: calc(16px * var(--fs, 1)); }

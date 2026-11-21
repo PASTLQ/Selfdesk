@@ -4,7 +4,7 @@ import { emptyData, normalize } from './core/merge'
 import { uid, today, addDays, addMonths } from './lib/date'
 
 const KEY = 'selfdesk.v1'
-export const defaultSettings: Settings = { theme: 'auto', dayStart: 7, dayEnd: 23, gClientId: '', gSync: false, ghToken: '', ghRepo: '', ghPath: 'data.json', ghBranch: '' }
+export const defaultSettings: Settings = { theme: 'auto', skin: 'quiet', accent: 'indigo', density: 'normal', fontScale: 1, customCss: '', todayOrder: [], todayHidden: [], dayStart: 7, dayEnd: 23, gClientId: '', gSync: false, ghToken: '', ghRepo: '', ghPath: 'data.json', ghBranch: '' }
 const empty = (): State => ({ ...emptyData(), gEvents: [], settings: defaultSettings })
 
 function load(): State {
