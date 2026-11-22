@@ -3,6 +3,7 @@ import { Sheet } from '../ui'
 import { useStore, patchTask, delTask, moveTask, promoteProject, demoteProject } from '../store'
 import { parentOptions } from '../lib/projects'
 import { hasChildren } from '../core/tree'
+import { RelatedPicker } from './RelatedPicker'
 import { uid, hm, fromHm } from '../lib/date'
 import type { Task } from '../types'
 
@@ -35,8 +36,9 @@ export function TaskSheet({ id, onClose }: { id: string; onClose: () => void }) 
         </>}
         <div className="row">
           <div className="field grow"><label htmlFor="tr">繰り返し</label><div className="sel"><select id="tr" value={t.repeat || ''} onChange={e => p({ repeat: (e.target.value || null) as Task['repeat'] })}><option value="">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option></select></div></div>
-          <div className="field grow"><label htmlFor="tg">タグ(カンマ区切り)</label><input id="tg" type="text" value={t.tags.join(',')} onChange={e => p({ tags: e.target.value.split(/[,、]/).map(x => x.trim()).filter(Boolean) })} /></div>
+          <div className="field grow"><label htmlFor="tg">ラベル(自由入力・カンマ区切り)</label><input id="tg" type="text" value={t.tags.join(',')} onChange={e => p({ tags: e.target.value.split(/[,、]/).map(x => x.trim()).filter(Boolean) })} /></div>
         </div>
+        <RelatedPicker selfId={id} value={t.links} onChange={links => p({ links })} />
         <div className="sec-h" style={{ marginTop: 8 }}>タイムブロック(時間を確保)</div>
         <div className="row">
           <div className="field grow"><label htmlFor="bd">日付</label><input id="bd" type="date" value={t.block?.date || ''} onChange={e => e.target.value ? p({ block: { start: 9 * 60, dur: t.est || 30, ...t.block, date: e.target.value } }) : p({ block: undefined })} /></div>

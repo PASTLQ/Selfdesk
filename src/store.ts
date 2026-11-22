@@ -3,6 +3,7 @@ import type { State, Task, Ev, Habit, Note, Settings, Review, Data, Wish, ExtIte
 import { emptyData, normalize } from './core/merge'
 import { nextOrder, canMove, hasChildren } from './core/tree'
 import { outlineToTasks } from './core/wbs-outline'
+import { resolveRelated, sameRef } from './core/links'
 import { uid, today, addDays, addMonths } from './lib/date'
 
 const KEY = 'selfdesk.v1'
@@ -69,6 +70,13 @@ export const addTask = (p: Partial<Task> & { title: string }) => {
   if (project && !rest.parent) rest.parent = projectByName(project).id
   const t = newTask({ ...rest, order: rest.order ?? nextOrder(get().tasks, rest.parent) })
   set(s => ({ ...s, tasks: [t, ...s.tasks] })); return t
+}
+/** クイック追加の @名前: 同名のプロジェクト/やりたいことがあれば関連(links)として付け、無ければ自由ラベル(tags)のまま */
+export function withRelatedTags(p: Partial<Task>): Partial<Task> {
+  if (!p.tags?.length) return p
+  const { tasks, wishes } = get(); const links = [...(p.links || [])]; const tags: string[] = []
+  for (const g of p.tags) { const r = resolveRelated(tasks, wishes, g); if (!r) tags.push(g); else if (!links.some(x => sameRef(x, r))) links.push(r) }
+  return { ...p, tags, links: links.length ? links : p.links }
 }
 export const patchTask = (id: string, p: Partial<Task>) => set(s => ({ ...s, tasks: s.tasks.map(t => t.id === id ? { ...t, ...p } : t) }))
 /** 親を付け替える。循環する場合は false */

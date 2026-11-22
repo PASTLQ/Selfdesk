@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Seg, Sheet } from '../ui'
 import { useStore, patchTask, patchEvent, addEvent, delEvent, get } from '../store'
 import { today, addDays, addMonths, weekStart, parse, JA, fmtDate, hm, fromHm, monthGrid, dstr } from '../lib/date'
@@ -23,7 +24,11 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
   const tasks = useStore(s => s.tasks); const events = useStore(s => s.events); const gEvents = useStore(s => s.gEvents); const st = useStore(s => s.settings)
   const [mode, setMode] = useState<Mode>(() => window.innerWidth < 700 ? 'day' : 'week')
   const [anchor, setAnchor] = useState(today()); const [evId, setEvId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<{ date: string; start: number } | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [sel, setSel] = useState<{ date: string; start: number; dur: number } | null>(null)   // ドラッグ中/作成ポップアップ中の選択範囲
+  const [quick, setQuick] = useState<{ date: string; start: number; dur: number; x: number; y: number } | null>(null)
+  const [mv, setMv] = useState<{ key: string; date: string; start: number } | null>(null)    // 予定を動かしている最中のプレビュー
+  const ptype = useRef('mouse'); const dragged = useRef(false)
   const [rz, setRz] = useState<{ key: string; dur: number } | null>(null)
   const [hover, setHover] = useState<string | null>(null); const [msg, setMsg] = useState('')
   const scroller = useRef<HTMLDivElement>(null); const td = today()
@@ -61,6 +66,45 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
       else { patchEvent(it.id, { dur: cur }); const ev = [...get().events, ...get().gEvents].find(x => x.id === it.id); if (ev?.gid && G.isConnected()) G.updateEvent(ev.gid, { ...ev, dur: cur }).catch(x => setMsg(x.message)) } }
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up)
   }
+  /** 画面上のX座標にある日の列と、その矩形 */
+  const colAt = (x: number) => { for (const el of document.querySelectorAll<HTMLElement>('.daycol[data-date]')) { const r = el.getBoundingClientRect(); if (x >= r.left && x < r.right) return { date: el.dataset.date!, rect: r } } return null }
+  const yMin = (y: number, r: DOMRect) => h0 * 60 + ((y - r.top) / PX) * 60
+  const clampStart = (m: number, dur: number) => Math.max(0, Math.min(snap(m), 1440 - Math.max(15, dur)))
+  /** 空き枠をドラッグして時間範囲を選ぶ(クリックだけなら1時間)。離すと作成ポップアップが開く */
+  const onColDown = (e: React.PointerEvent<HTMLDivElement>, d: string) => {
+    ptype.current = e.pointerType
+    if (e.pointerType === 'touch' || e.button !== 0) return
+    const t = e.target as HTMLElement; if (t !== e.currentTarget && !t.classList.contains('slot')) return
+    e.preventDefault(); const rect = e.currentTarget.getBoundingClientRect(); const y0 = e.clientY; const m0 = yMin(y0, rect); let moved = false; let cur = { date: d, start: Math.floor(m0 / 30) * 30, dur: 60 }
+    const mvf = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientY - y0) < 5) return; moved = true; const m1 = yMin(ev.clientY, rect)
+      const a = Math.floor(Math.min(m0, m1) / 15) * 15, b = Math.ceil(Math.max(m0, m1) / 15) * 15; cur = { date: d, start: Math.max(0, a), dur: Math.max(15, Math.min(b, 1440) - Math.max(0, a)) }; setSel(cur)
+    }
+    const end = (ok: boolean, ev?: PointerEvent) => { window.removeEventListener('pointermove', mvf); window.removeEventListener('pointerup', up); window.removeEventListener('keydown', key); if (!ok) { setSel(null); return }; setSel(cur); setQuick({ ...cur, x: ev?.clientX ?? 0, y: ev?.clientY ?? 0 }) }
+    const up = (ev: PointerEvent) => end(true, ev); const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') end(false) }
+    setSel(cur); window.addEventListener('pointermove', mvf); window.addEventListener('pointerup', up); window.addEventListener('keydown', key)
+  }
+  /** タッチ端末はスクロールと衝突するので、タップで1時間の作成ポップアップ */
+  const onColTap = (e: React.MouseEvent<HTMLDivElement>, d: string) => {
+    if (ptype.current !== 'touch') return; const t = e.target as HTMLElement; if (t !== e.currentTarget && !t.classList.contains('slot')) return
+    const start = Math.floor(yMin(e.clientY, e.currentTarget.getBoundingClientRect()) / 30) * 30; setSel({ date: d, start, dur: 60 }); setQuick({ date: d, start, dur: 60, x: e.clientX, y: e.clientY })
+  }
+  /** 予定・タスクのブロックをドラッグして、別の時間・別の日へ動かす(動かしている間、枠にスナップして見える) */
+  const onBlkDown = (e: React.PointerEvent<HTMLDivElement>, it: Item) => {
+    ptype.current = e.pointerType
+    if (e.pointerType === 'touch' || e.button !== 0 || (e.target as HTMLElement).classList.contains('rz')) return
+    const x0 = e.clientX, y0 = e.clientY; const off = ((y0 - e.currentTarget.getBoundingClientRect().top) / PX) * 60; let moved = false; let cur: { date: string; start: number } | null = null
+    const mvf = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return; moved = true
+      const c = colAt(ev.clientX); if (!c) return; cur = { date: c.date, start: clampStart(yMin(ev.clientY, c.rect) - off, it.dur) }; setMv({ key: it.key, ...cur })
+    }
+    const end = (ok: boolean) => { window.removeEventListener('pointermove', mvf); window.removeEventListener('pointerup', up); window.removeEventListener('keydown', key); setMv(null)
+      if (moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false }, 0); if (ok && cur && (cur.date !== it.date || cur.start !== it.start)) moveTo({ k: it.kind, id: it.id }, cur.date, cur.start) } }
+    const up = () => end(true); const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') end(false) }
+    window.addEventListener('pointermove', mvf); window.addEventListener('pointerup', up); window.addEventListener('keydown', key)
+  }
+  const shown = useMemo(() => mv ? items.map(i => i.key === mv.key ? { ...i, date: mv.date, start: mv.start } : i) : items, [items, mv])
+  const closeQuick = () => { setQuick(null); setSel(null) }
   const title = mode === 'month' ? `${parse(anchor).getFullYear()}年${parse(anchor).getMonth() + 1}月` : mode === 'day' ? fmtDate(anchor) : `${fmtDate(days[0])} – ${fmtDate(days[6])}`
   const step = (n: number) => setAnchor(mode === 'month' ? addMonths(anchor, n) : addDays(anchor, n * (mode === 'week' ? 7 : 1)))
   const totalH = (h1 - h0) * PX
@@ -100,18 +144,19 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
               <div className="grid" style={{ ['--cols' as any]: days.length }}>
                 <div className="hours">{Array.from({ length: h1 - h0 }, (_, i) => <div key={i}>{h0 + i}:00</div>)}</div>
                 {days.map(d => {
-                  const its = items.filter(i => i.date === d && !i.allDay); const lay = layout(its)
+                  const its = shown.filter(i => i.date === d && !i.allDay); const lay = layout(its)
                   const now = new Date(); const nowM = now.getHours() * 60 + now.getMinutes()
-                  return <div key={d} className={'daycol' + (d === td ? ' today' : '') + (hover === d ? ' drop-hint' : '')} style={{ height: totalH }}
+                  return <div key={d} className={'daycol' + (d === td ? ' today' : '') + (hover === d ? ' drop-hint' : '')} style={{ height: totalH }} data-date={d}
                     onDragOver={e => { e.preventDefault(); setHover(d) }} onDragLeave={() => setHover(null)} onDrop={e => onDrop(e, d)}
-                    onClick={e => { if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains('slot')) return; const r = e.currentTarget.getBoundingClientRect(); setDraft({ date: d, start: Math.floor((h0 * 60 + ((e.clientY - r.top) / PX) * 60) / 30) * 30 }) }}>
+                    onPointerDown={e => onColDown(e, d)} onClick={e => onColTap(e, d)}>
                     {Array.from({ length: h1 - h0 }, (_, i) => <div key={i} className="slot" />)}
+                    {sel && sel.date === d && <div className="selbox" style={{ top: ((sel.start - h0 * 60) / 60) * PX, height: Math.max(8, (sel.dur / 60) * PX - 2) }}><span>{hm(sel.start)}–{hm(sel.start + sel.dur)}</span></div>}
                     {d === td && nowM >= h0 * 60 && nowM <= h1 * 60 && <div className="nowline" style={{ top: ((nowM - h0 * 60) / 60) * PX }} />}
                     {its.map(it => { const l = lay.get(it.key) || { col: 0, cols: 1 }; const dur = rz?.key === it.key ? rz.dur : it.dur
-                      return <div key={it.key} role="button" tabIndex={0} className={'blk ' + it.kind + (it.google ? ' google' : '') + (it.done ? ' done' : '')}
+                      return <div key={it.key} role="button" tabIndex={0} className={'blk ' + it.kind + (it.google ? ' google' : '') + (it.done ? ' done' : '') + (mv?.key === it.key ? ' moving' : '')}
                         style={{ top: ((it.start - h0 * 60) / 60) * PX, height: Math.max(18, (dur / 60) * PX - 2), left: `calc(${(l.col / l.cols) * 100}% + 3px)`, width: `calc(${100 / l.cols}% - 6px)`, right: 'auto' }}
-                        draggable onDragStart={e => { const r = e.currentTarget.getBoundingClientRect(); e.dataTransfer.setData('text/plain', JSON.stringify({ k: it.kind, id: it.id, off: ((e.clientY - r.top) / PX) * 60 })) }}
-                        onClick={e => { e.stopPropagation(); it.kind === 'task' ? openTask(it.id) : setEvId(it.id) }}
+                        onPointerDown={e => { e.stopPropagation(); onBlkDown(e, it) }}
+                        onClick={e => { e.stopPropagation(); if (dragged.current) return; it.kind === 'task' ? openTask(it.id) : setEvId(it.id) }}
                         onKeyDown={e => { if (e.key === 'Enter') it.kind === 'task' ? openTask(it.id) : setEvId(it.id) }}>
                         <b>{it.title}</b><div>{hm(it.start)}–{hm(it.start + dur)}</div><span className="rz" onPointerDown={e => startResize(e, it)} />
                       </div> })}
@@ -122,14 +167,39 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
           </div>
         </div>
       )}
+      {quick && <QuickCreate q={quick} onClose={closeQuick} onDetail={d => { closeQuick(); setDraft(d) }} onError={setMsg} />}
       {(draft || evId) && <EventSheet id={evId} draft={draft} onClose={() => { setEvId(null); setDraft(null) }} />}
     </div>
   )
 }
+type Draft = { date: string; start: number; dur?: number; title?: string }
 
-function EventSheet({ id, draft, onClose }: { id: string | null; draft: { date: string; start: number } | null; onClose: () => void }) {
+/** Google カレンダー風の作成ポップアップ: タイトルを打って Enter で予定にする。「詳細」で全項目の編集へ */
+function QuickCreate({ q, onClose, onDetail, onError }: { q: { date: string; start: number; dur: number; x: number; y: number }; onClose: () => void; onDetail: (d: Draft) => void; onError: (m: string) => void }) {
+  const [title, setTitle] = useState(''); const [start, setStart] = useState(q.start); const [dur, setDur] = useState(q.dur)
+  const W = 340, left = Math.max(8, Math.min(q.x + 12, window.innerWidth - W - 8)), top = Math.max(8, Math.min(q.y + 12, window.innerHeight - 210))
+  const save = () => {
+    if (!title.trim()) return
+    const ev = addEvent({ title: title.trim(), date: q.date, start, dur })
+    if (get().settings.gSync && G.isConnected()) G.pushLocalEvent(ev.id).catch(e => onError(String(e.message || e)))
+    onClose()
+  }
+  return createPortal(<>
+    <div className="qc-back" onPointerDown={onClose} />
+    <div className="qc" role="dialog" aria-label="予定を作成" style={{ left, top, width: W }} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}>
+      <input className="qc-title" data-autofocus autoFocus aria-label="タイトル" placeholder="タイトルを追加" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save() }} />
+      <div className="qc-time"><span>{fmtDate(q.date)}</span>
+        <input type="time" step={300} aria-label="開始" value={hm(start)} onChange={e => setStart(fromHm(e.target.value))} /> – <input type="time" step={300} aria-label="終了" value={hm(Math.min(start + dur, 1439))} onChange={e => setDur(Math.max(5, fromHm(e.target.value) - start))} /></div>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button className="btn btn-sm" onClick={() => onDetail({ date: q.date, start, dur, title })}>詳細</button>
+        <button className="btn btn-sm btn-primary" disabled={!title.trim()} onClick={save}>保存</button>
+      </div>
+    </div></>, document.body)
+}
+
+function EventSheet({ id, draft, onClose }: { id: string | null; draft: Draft | null; onClose: () => void }) {
   const ex = useStore(s => [...s.events, ...s.gEvents].find(e => e.id === id))
-  const [f, setF] = useState<Partial<Ev> & { title: string; date: string }>(() => ex ? { ...ex } : { title: '', date: draft?.date || today(), start: draft?.start ?? 540, dur: 60, source: 'local' })
+  const [f, setF] = useState<Partial<Ev> & { title: string; date: string }>(() => ex ? { ...ex } : { title: draft?.title || '', date: draft?.date || today(), start: draft?.start ?? 540, dur: draft?.dur ?? 60, source: 'local' })
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false)
   const up = (p: Partial<Ev>) => setF(x => ({ ...x, ...p }))
   const save = async () => {

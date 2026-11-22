@@ -55,6 +55,16 @@ await t('やりたいこと: 追加→昇格→達成', async () => {
 await t('search が横断で当たる', async () => {
   const r = (await call('search', { query: '下呂' })).v; assert.ok(r.results.some((x: any) => x.kind === 'wish')); assert.ok(r.results.some((x: any) => x.kind === 'project'))
 })
+await t('タグ(related): プロジェクト・やりたいこと自体を付け、絞り込み・付け替え・不明な名前の拒否ができる', async () => {
+  const a = (await call('add_task', { title: '旅費を調べる', related: ['下呂温泉に行く', '仕事'], tags: ['メモ'] })).v
+  assert.deepEqual(a.related.map((r: any) => r.title).sort(), ['下呂温泉に行く', '仕事'].sort()); assert.deepEqual(a.tags, ['メモ'])
+  assert.equal((await call('list_tasks', { related: '下呂温泉に行く' })).v.total, 1); assert.equal((await call('list_tasks', { related: '仕事' })).v.total, 1)
+  const u = (await call('update_task', { id: a.id, related: ['仕事'] })).v; assert.deepEqual(u.related.map((r: any) => r.title), ['仕事']); assert.deepEqual(u.tags, ['メモ'])
+  assert.equal((await call('list_tasks', { related: '下呂温泉に行く' })).v.total, 0)
+  assert.equal((await call('add_task', { title: 'x', related: ['存在しない'] })).err, true)
+  assert.equal((await call('update_task', { id: a.id, related: [] })).v.related, undefined)
+  await call('delete_task', { id: a.id })
+})
 await t('保存されたデータ: wishes があり、旧 project 文字列が残っていない', async () => {
   const d = gh.data(); assert.equal(d.wishes.length, 1); assert.ok(d.tasks.every((x: any) => x.project === undefined)); assert.ok(d.tasks.some((x: any) => x.isProject && x.title === '仕事'))
 })

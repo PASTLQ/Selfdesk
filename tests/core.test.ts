@@ -3,7 +3,9 @@ import { normalize, mergeData, legacyProjectId, emptyData } from '../src/core/me
 import { rollup, wbs, canMove, descendants, isActionable, projectOf } from '../src/core/tree'
 import { outlineToTasks } from '../src/core/wbs-outline'
 import { defineCollection, validateItem } from '../src/core/collections'
-import type { Task, Data } from '../src/types'
+import { relatedChoices, relatedOf, resolveRelated, toggleRef, withRelated, tasksRelatedTo } from '../src/core/links'
+import { layoutTree, canDropOn } from '../src/core/tree-layout'
+import type { Task, Data, Wish } from '../src/types'
 
 const T = (id: string, extra: Partial<Task> = {}): Task => ({ id, title: id, notes: '', done: false, priority: 0, tags: [], repeat: null, subs: [], createdAt: '2026-01-01T00:00:00Z', ...extra })
 let n = 0; const t = (name: string, fn: () => void) => { fn(); n++; console.log('ok', name) }
@@ -56,5 +58,29 @@ t('コレクション: 定義の検証と入力の検証', () => {
   assert.equal(validateItem(def, { status: 'a' }).ok, false); assert.equal(validateItem(def, { title: 't', status: 'z' }).ok, false)
   const ok = validateItem(def, { title: 't', rating: 3, junk: 1 }); assert.equal(ok.ok, true); assert.deepEqual((ok as any).value, { title: 't', rating: 3 })
   assert.equal(validateItem(def, { rating: 4 }, true).ok, true)
+})
+t('タグ: プロジェクト・やりたいこと自体を付け外しでき、消えた参照は出ない', () => {
+  const ts = [T('P', { isProject: true }), T('Q', { isProject: true, archived: true }), T('a')]; const ws = [{ id: 'W', title: '温泉', status: 'someday' } as unknown as Wish]
+  assert.deepEqual(relatedChoices(ts, ws).map(c => c.ref.id), ['P', 'W'])   // アーカイブ済みプロジェクトは候補に出ない
+  assert.deepEqual(resolveRelated(ts, ws, 'P'), { kind: 'project', id: 'P' }); assert.deepEqual(resolveRelated(ts, ws, '温泉'), { kind: 'wish', id: 'W' }); assert.equal(resolveRelated(ts, ws, 'nope'), undefined)
+  const l1 = toggleRef(undefined, { kind: 'wish', id: 'W' }); assert.equal(toggleRef(l1, { kind: 'wish', id: 'W' }).length, 0); assert.equal(l1.length, 1)
+  const orig = [{ kind: 'wish', id: 'W' }, { kind: 'books', id: 'b1' }]; const kept = withRelated(orig, [{ kind: 'project', id: 'P' }])
+  assert.deepEqual(kept, [{ kind: 'books', id: 'b1' }, { kind: 'project', id: 'P' }]); assert.equal(orig.length, 2)   // 元は変えない・他の参照は残す
+  const x = T('x', { links: [{ kind: 'wish', id: 'W' }, { kind: 'project', id: 'gone' }] }); assert.deepEqual(relatedOf(ts, ws, x).map(r => r.title), ['温泉'])
+  assert.deepEqual(tasksRelatedTo([x, T('y')], { kind: 'wish', id: 'W' }).map(z => z.id), ['x'])
+})
+t('構造図のレイアウト: 親は子の中央、畳むと子が消える、重ならない', () => {
+  const ts = [T('R', { isProject: true, order: 0 }), T('a', { parent: 'R', order: 0, isProject: true }), T('b', { parent: 'R', order: 1 }), T('a1', { parent: 'a', order: 0 }), T('a2', { parent: 'a', order: 1 })]
+  const L = layoutTree(ts, [ts[0]], { nodeW: 100, nodeH: 40, gapX: 10, gapY: 10 }); const y = (id: string) => L.byId.get(id)!.y
+  assert.equal(L.nodes.length, 5); assert.equal(y('a1'), 0); assert.equal(y('a2'), 50); assert.equal(y('a'), 25); assert.equal(y('b'), 100); assert.equal(y('R'), 62.5)
+  assert.equal(L.byId.get('a')!.x, 110); assert.equal(L.byId.get('a1')!.x, 220)
+  const ys = L.nodes.filter(n => n.depth === 2 || n.t.id === 'b').map(n => n.y); assert.equal(new Set(ys).size, ys.length)
+  const C = layoutTree(ts, [ts[0]], { collapsed: new Set(['a']), nodeH: 40, gapY: 10 }); assert.equal(C.nodes.length, 3); assert.equal(C.byId.get('a')!.hidden, 2)
+  const P = layoutTree(ts, [ts[0]], { show: x => !!x.isProject }); assert.deepEqual(P.nodes.map(n => n.t.id), ['R', 'a'])   // プロジェクトだけ表示
+})
+t('構造図のドラッグ: 自分・子孫・今の親には落とせない', () => {
+  const ts = [T('R'), T('a', { parent: 'R' }), T('a1', { parent: 'a' }), T('b', { parent: 'R' })]
+  assert.equal(canDropOn(ts, 'a', 'a'), false); assert.equal(canDropOn(ts, 'a', 'a1'), false); assert.equal(canDropOn(ts, 'a', 'R'), false)
+  assert.equal(canDropOn(ts, 'a', 'b'), true); assert.equal(canDropOn(ts, 'a1', 'R'), true)
 })
 console.log(`\n${n} tests passed`)

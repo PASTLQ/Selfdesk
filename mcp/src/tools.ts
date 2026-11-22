@@ -7,6 +7,7 @@ import { ancestors, childrenOf, descendants, hasChildren, isActionable, nextOrde
 import { outlineToTasks } from '../../src/core/wbs-outline'
 import { validateItem, type CollectionDef } from '../../src/core/collections'
 import { COLLECTIONS } from '../../src/collections'
+import { resolveRelated, relatedOf, withRelated, sameRef } from '../../src/core/links'
 import type { IO } from './io'
 
 export const GUIDE = `SelfDesk はユーザーの生活管理の「正(source of truth)」です。予定・タスク・メモ・プロジェクトについて、推測や記憶で答えず、必ずこのサーバーで確認してから答える/変更してください。
@@ -18,6 +19,7 @@ export const GUIDE = `SelfDesk はユーザーの生活管理の「正(source of
 - プロジェクト・タスク・Todoは「1本の階層ツリー」。プロジェクト = 目標(goal)と完了条件(done_when)を持つ項目(is_project=true)。子を持つ項目はWBSの親、子を持たない項目(葉)が実際に手を動かす単位。葉の中の細かい手順は subtasks(Todo)。
 - 境界は主観。迷ったら葉のタスクとして作り、規模が大きいと分かったら update_task is_project=true で昇格させる。WBSは add_wbs で、インデントのアウトラインから一括作成できる。
 - 進捗は葉の完了率から自動計算される(get_project / list_projects)。プロジェクト自体を完了にするのは、完了条件を満たしたとユーザーが言ったとき。
+- タグ: タスクには、プロジェクト・やりたいこと自体を「タグ」として付けられる(related。階層とは別の横のつながり)。例: 旅費を調べる に やりたいこと「下呂温泉に行く」を付ける。自由な文字列のラベルは tags。
 - やりたいこと(wishes)は義務ではない願望リスト(例: 下呂温泉に行く)。プロジェクトとは別。「やる」と決まったら promote_wish、叶ったら complete_wish(感想も残す)。
 - ツール拡張のデータは コレクション(collection_schemas で一覧)。専用ツールが無い種類のデータは collection_* で読み書きする。
 - 横断検索は search。`
@@ -40,10 +42,12 @@ const fmtTask = (t: Task) => {
   return {
     id: t.id, title: t.title, done: t.done, due: t.due, start: t.start, priority: t.priority, est_min: t.est, project: pj?.title, project_id: pj?.id, parent_id: t.parent,
     is_project: t.isProject || undefined, milestone: t.milestone || undefined, goal: t.goal || undefined, done_when: t.doneWhen || undefined, archived: t.archived || undefined,
-    tags: t.tags.length ? t.tags : undefined, repeat: t.repeat || undefined, notes: t.notes || undefined, subtasks: t.subs.length ? t.subs.map((s, i) => ({ index: i, title: s.title, done: s.done })) : undefined,
+    tags: t.tags.length ? t.tags : undefined, related: CUR && relatedOf(CUR.tasks, CUR.wishes, t).length ? relatedOf(CUR.tasks, CUR.wishes, t).map(r => ({ kind: r.kind, id: r.ref.id, title: r.title })) : undefined, repeat: t.repeat || undefined, notes: t.notes || undefined, subtasks: t.subs.length ? t.subs.map((s, i) => ({ index: i, title: s.title, done: s.done })) : undefined,
     time_block: t.block ? { date: t.block.date, start: hm(t.block.start), duration_min: t.block.dur } : undefined,
   }
 }
+const REL_DESC = 'タグとして付けるプロジェクト/やりたいことの名前またはID(複数可)。階層(親子)とは別の「横のつながり」。タスクを やりたいこと や別プロジェクトに関連づけたいときに使う。既存の自由ラベルは tags'
+const relRefs = (d: Data, keys: string[]) => keys.map(k => { const r = resolveRelated(d.tasks, d.wishes, k); if (!r) throw new Error(`プロジェクトまたはやりたいことが見つかりません: ${k}`); return r })
 const fmtEv = (e: Ev) => ({ id: e.id, title: e.title, date: e.date, start: e.allDay ? undefined : hm(e.start), duration_min: e.allDay ? undefined : e.dur, all_day: e.allDay || undefined, place: e.place })
 const mkTask = (p: Partial<Task> & { title: string }): Task => ({ id: uid(), notes: '', done: false, priority: 0, tags: [], repeat: null, subs: [], createdAt: new Date().toISOString(), u: now(), ...p })
 const fmtWish = (w: Wish) => ({ id: w.id, title: w.title, status: w.status, category: w.category, target: w.target, note: w.note || undefined, project_id: w.project, done_at: w.doneAt, reflection: w.reflection })
@@ -82,12 +86,13 @@ export function createServer(io: IO): McpServer {
       }
     })))
 
-  server.registerTool('list_tasks', { description: 'タスクを検索・一覧する。status既定は open。結果は期限が近い順→優先度順。既定は「実際に手を動かす葉のタスク」のみ。プロジェクトやWBSの親も含めるなら level=all。project はプロジェクト名またはID(配下すべてが対象)。', inputSchema: { status: z.enum(['open', 'done', 'all']).optional(), project: z.string().optional(), level: z.enum(['actionable', 'all']).optional(), tag: z.string().optional(), due_from: D.optional(), due_to: D.optional(), scheduled: z.boolean().optional().describe('true=時間確保済みのみ / false=未確保のみ'), query: z.string().optional().describe('タイトル・メモの部分一致'), limit: z.number().int().min(1).max(200).optional() }, annotations: { readOnlyHint: true } },
-    wrap(async (a: { status?: string; project?: string; level?: string; tag?: string; due_from?: string; due_to?: string; scheduled?: boolean; query?: string; limit?: number }) => read(d => {
+  server.registerTool('list_tasks', { description: 'タスクを検索・一覧する。status既定は open。結果は期限が近い順→優先度順。既定は「実際に手を動かす葉のタスク」のみ。プロジェクトやWBSの親も含めるなら level=all。project はプロジェクト名またはID(配下すべてが対象)。', inputSchema: { status: z.enum(['open', 'done', 'all']).optional(), project: z.string().optional(), level: z.enum(['actionable', 'all']).optional(), tag: z.string().optional(), related: z.string().optional().describe('このプロジェクト/やりたいこと(名前またはID)がタグとして付いたタスクだけ'), due_from: D.optional(), due_to: D.optional(), scheduled: z.boolean().optional().describe('true=時間確保済みのみ / false=未確保のみ'), query: z.string().optional().describe('タイトル・メモの部分一致'), limit: z.number().int().min(1).max(200).optional() }, annotations: { readOnlyHint: true } },
+    wrap(async (a: { status?: string; project?: string; level?: string; tag?: string; related?: string; due_from?: string; due_to?: string; scheduled?: boolean; query?: string; limit?: number }) => read(d => {
       let l = d.tasks.filter(t => a.status === 'all' ? true : a.status === 'done' ? t.done : !t.done)
       if (a.level !== 'all') l = l.filter(t => isActionable(d.tasks, t))
       if (a.project) { const p = resolveProject(d, a.project); const ids = new Set(descendants(d.tasks, p.id).map(x => x.id)); l = l.filter(t => ids.has(t.id)) }
       if (a.tag) l = l.filter(t => t.tags.includes(a.tag!))
+      if (a.related) { const [r] = relRefs(d, [a.related]); l = l.filter(t => (t.links || []).some(x => sameRef(x, r))) }
       if (a.due_from) l = l.filter(t => t.due && t.due >= a.due_from!); if (a.due_to) l = l.filter(t => t.due && t.due <= a.due_to!)
       if (a.scheduled !== undefined) l = l.filter(t => !!t.block === a.scheduled)
       if (a.query) { const q = a.query.toLowerCase(); l = l.filter(t => (t.title + t.notes).toLowerCase().includes(q)) }
@@ -132,21 +137,21 @@ export function createServer(io: IO): McpServer {
 
   /* ---------------- タスク ---------------- */
   const prio = z.number().int().min(0).max(3).describe('0=なし,1=低,2=中,3=高')
-  server.registerTool('add_task', { description: 'タスクを追加する。project はプロジェクト名またはID(無ければ名前で新規プロジェクトを作る)、parent_id はWBSの親。時間まで確保するなら、続けて schedule_task を呼ぶ。', inputSchema: { title: z.string().min(1), due: D.optional(), start: D.optional(), priority: prio.optional(), est_min: z.number().int().min(1).optional(), project: z.string().optional(), parent_id: z.string().optional(), milestone: z.boolean().optional(), tags: z.array(z.string()).optional(), repeat: z.enum(['daily', 'weekly', 'monthly']).optional(), notes: z.string().optional(), subtasks: z.array(z.string()).optional() } },
-    wrap(async (a: { title: string; due?: string; start?: string; priority?: number; est_min?: number; project?: string; parent_id?: string; milestone?: boolean; tags?: string[]; repeat?: 'daily' | 'weekly' | 'monthly'; notes?: string; subtasks?: string[] }) => mutate(d => {
+  server.registerTool('add_task', { description: 'タスクを追加する。project はプロジェクト名またはID(無ければ名前で新規プロジェクトを作る)、parent_id はWBSの親。時間まで確保するなら、続けて schedule_task を呼ぶ。', inputSchema: { title: z.string().min(1), due: D.optional(), start: D.optional(), priority: prio.optional(), est_min: z.number().int().min(1).optional(), project: z.string().optional(), parent_id: z.string().optional(), milestone: z.boolean().optional(), tags: z.array(z.string()).optional(), related: z.array(z.string()).optional().describe(REL_DESC), repeat: z.enum(['daily', 'weekly', 'monthly']).optional(), notes: z.string().optional(), subtasks: z.array(z.string()).optional() } },
+    wrap(async (a: { title: string; due?: string; start?: string; priority?: number; est_min?: number; project?: string; parent_id?: string; milestone?: boolean; tags?: string[]; related?: string[]; repeat?: 'daily' | 'weekly' | 'monthly'; notes?: string; subtasks?: string[] }) => mutate(d => {
       const parent = a.parent_id ? find(d.tasks, a.parent_id, '親').id : a.project ? resolveProject(d, a.project, true).id : undefined
-      const t = mkTask({ title: a.title, due: a.due, start: a.start, priority: (a.priority ?? 0) as 0, est: a.est_min, parent, order: nextOrder(d.tasks, parent), milestone: a.milestone || undefined, tags: a.tags || [], repeat: a.repeat || null, notes: a.notes || '', subs: (a.subtasks || []).map(s => ({ id: uid(), title: s, done: false })) })
+      const t = mkTask({ title: a.title, due: a.due, start: a.start, priority: (a.priority ?? 0) as 0, est: a.est_min, parent, order: nextOrder(d.tasks, parent), milestone: a.milestone || undefined, tags: a.tags || [], links: a.related?.length ? relRefs(d, a.related) : undefined, repeat: a.repeat || null, notes: a.notes || '', subs: (a.subtasks || []).map(s => ({ id: uid(), title: s, done: false })) })
       d.tasks.unshift(t); return fmtTask(t)
     }, 'MCP: タスク追加')))
-  server.registerTool('update_task', { description: 'タスク/プロジェクトを更新する。指定した項目だけ変わる。due/start/est_min/parent_id に null で解除。is_project=true でプロジェクトに昇格(goal / done_when も設定する)、false で降格。完了は complete_task を使う。', inputSchema: { id: z.string(), title: z.string().optional(), due: D.nullable().optional(), start: D.nullable().optional(), priority: prio.optional(), est_min: z.number().int().min(1).nullable().optional(), parent_id: z.string().nullable().optional(), milestone: z.boolean().optional(), is_project: z.boolean().optional(), goal: z.string().optional(), done_when: z.string().optional(), approach: z.string().optional(), archived: z.boolean().optional(), tags: z.array(z.string()).optional(), repeat: z.enum(['daily', 'weekly', 'monthly']).nullable().optional(), notes: z.string().optional() } },
-    wrap(async (a: { id: string; title?: string; due?: string | null; start?: string | null; priority?: number; est_min?: number | null; parent_id?: string | null; milestone?: boolean; is_project?: boolean; goal?: string; done_when?: string; approach?: string; archived?: boolean; tags?: string[]; repeat?: 'daily' | 'weekly' | 'monthly' | null; notes?: string }) => mutate(d => {
+  server.registerTool('update_task', { description: 'タスク/プロジェクトを更新する。指定した項目だけ変わる。due/start/est_min/parent_id に null で解除。is_project=true でプロジェクトに昇格(goal / done_when も設定する)、false で降格。完了は complete_task を使う。', inputSchema: { id: z.string(), title: z.string().optional(), due: D.nullable().optional(), start: D.nullable().optional(), priority: prio.optional(), est_min: z.number().int().min(1).nullable().optional(), parent_id: z.string().nullable().optional(), milestone: z.boolean().optional(), is_project: z.boolean().optional(), goal: z.string().optional(), done_when: z.string().optional(), approach: z.string().optional(), archived: z.boolean().optional(), tags: z.array(z.string()).optional(), related: z.array(z.string()).optional().describe(REL_DESC + '。指定すると付け替わる(空配列で全部外す)'), repeat: z.enum(['daily', 'weekly', 'monthly']).nullable().optional(), notes: z.string().optional() } },
+    wrap(async (a: { id: string; title?: string; due?: string | null; start?: string | null; priority?: number; est_min?: number | null; parent_id?: string | null; milestone?: boolean; is_project?: boolean; goal?: string; done_when?: string; approach?: string; archived?: boolean; tags?: string[]; related?: string[]; repeat?: 'daily' | 'weekly' | 'monthly' | null; notes?: string }) => mutate(d => {
       const t = find(d.tasks, a.id, 'タスク')
       if (a.title !== undefined) t.title = a.title; if (a.due !== undefined) t.due = a.due || undefined; if (a.start !== undefined) t.start = a.start || undefined; if (a.priority !== undefined) t.priority = a.priority as 0
       if (a.est_min !== undefined) t.est = a.est_min || undefined
       if (a.parent_id !== undefined) { const np = a.parent_id ? find(d.tasks, a.parent_id, '親').id : undefined; if (!canMove(d.tasks, t.id, np)) throw new Error('自分自身や子孫を親にはできません'); t.parent = np; t.order = nextOrder(d.tasks.filter(x => x.id !== t.id), np) }
       if (a.milestone !== undefined) t.milestone = a.milestone || undefined; if (a.is_project !== undefined) t.isProject = a.is_project
       if (a.goal !== undefined) t.goal = a.goal; if (a.done_when !== undefined) t.doneWhen = a.done_when; if (a.approach !== undefined) t.approach = a.approach; if (a.archived !== undefined) t.archived = a.archived || undefined
-      if (a.tags) t.tags = a.tags; if (a.repeat !== undefined) t.repeat = a.repeat; if (a.notes !== undefined) t.notes = a.notes
+      if (a.tags) t.tags = a.tags; if (a.related) { const rs = relRefs(d, a.related).filter(r => r.id !== t.id); const l = withRelated(t.links, rs); t.links = l.length ? l : undefined }; if (a.repeat !== undefined) t.repeat = a.repeat; if (a.notes !== undefined) t.notes = a.notes
       stamp(t); return fmtTask(t)
     }, 'MCP: タスク更新')))
   server.registerTool('delete_task', { description: 'タスク/プロジェクトを削除する(元に戻せない)。子は1つ上の階層に付け替わり、消えない。', inputSchema: { id: z.string() }, annotations: { destructiveHint: true } },

@@ -2,7 +2,7 @@
 import { registerView, registerCommand, registerSource } from '../registry'
 import { go } from '../route'
 import { openTask } from '../ui-state'
-import { useStore, addTask, get, setSettings } from '../store'
+import { useStore, addTask, get, setSettings, withRelatedTags } from '../store'
 import { parseQuick } from '../lib/quick'
 import { fmtDate } from '../lib/date'
 import { Today } from './Today'
@@ -14,6 +14,7 @@ import { Review } from './Review'
 import { Settings } from './Settings'
 import { Projects } from './Projects'
 import { Wishes, ST } from './Wishes'
+import { Structure } from './Structure'
 import { CollectionView } from './CollectionView'
 import { COLLECTIONS } from '../collections'
 import '../widgets/today'
@@ -26,6 +27,7 @@ registerView({ id: 'today', title: '今日', icon: 'today', group: 'main', order
 registerView({ id: 'tasks', title: 'タスク', icon: 'tasks', group: 'plan', order: 20, width: 'narrow', mobile: true, component: () => <Tasks open={openTask} />, aside: Count })
 registerView({ id: 'calendar', title: 'カレンダー', icon: 'calendar', group: 'plan', order: 30, width: 'full', mobile: true, component: () => <Calendar openTask={openTask} /> })
 registerView({ id: 'projects', title: 'プロジェクト', icon: 'star', group: 'plan', order: 25, width: 'normal', mobile: false, component: Projects })
+registerView({ id: 'structure', title: '構造図', icon: 'tree', group: 'plan', order: 26, width: 'full', mobile: false, component: Structure })
 registerView({ id: 'wishes', title: 'やりたいこと', icon: 'heart', group: 'plan', order: 45, width: 'narrow', component: Wishes, aside: WishCount })
 registerView({ id: 'notes', title: 'メモ', icon: 'notes', group: 'plan', order: 40, width: 'full', mobile: true, component: ({ param, nav }) => <Notes openId={param ?? null} setOpenId={id => nav(id ? `notes/${id}` : 'notes')} /> })
 registerView({ id: 'habits', title: '習慣', icon: 'habits', group: 'log', order: 50, width: 'narrow', component: Habits })
@@ -51,6 +53,6 @@ registerSource('core.search', q => {
   tasks.filter(t => t.isProject).filter(t => (t.title + (t.goal || '')).toLowerCase().includes(lc)).slice(0, 5).forEach(t => out.push({ id: 'pj.' + t.id, title: t.title, section: 'プロジェクト', run: () => go('projects/' + t.id) }))
   get().wishes.filter(w => (w.title + w.note).toLowerCase().includes(lc)).slice(0, 5).forEach(w => out.push({ id: 'w.' + w.id, title: w.title, section: 'やりたいこと', hint: ST[w.status], run: () => go('wishes') }))
   notes.filter(n => (n.title + ' ' + n.body).toLowerCase().includes(lc)).slice(0, 6).forEach(n => out.push({ id: 'n.' + n.id, title: n.title || '(無題)', section: 'メモ', run: () => go('notes/' + n.id) }))
-  if (p.title) out.push({ id: 'q.add', title: `タスクに追加: ${p.title}`, section: '追加', run: () => { addTask({ ...p }) } })  // 誤爆防止: 検索結果の最後に置く
+  if (p.title) out.push({ id: 'q.add', title: `タスクに追加: ${p.title}`, section: '追加', run: () => { addTask({ ...withRelatedTags(p), title: p.title }) } })  // 誤爆防止: 検索結果の最後に置く
   return out
 })
