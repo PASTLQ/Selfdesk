@@ -11,6 +11,8 @@
     "build:mcp": "cd mcp && npm ci && npm run build",
     "test": "tsx tests/core.test.ts && tsx tests/mcp.test.ts",
     "check:rules": "node scripts/check.mjs",
+    "check:scope": "node scripts/check-scope.mjs",
+    "kit": "node scripts/build-kit.mjs",
     "check": "npm run check:rules && tsc --noEmit && (cd mcp && npx tsc --noEmit) && npm test"
   },
   "dependencies": {

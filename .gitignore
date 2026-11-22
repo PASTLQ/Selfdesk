@@ -1,5 +1,6 @@
 node_modules
 dist
+kit
 *.log
 .DS_Store
 .wrangler
