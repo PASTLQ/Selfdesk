@@ -62,6 +62,7 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
     e.stopPropagation(); e.preventDefault(); const y0 = e.clientY; const d0 = it.dur; let cur = d0
     const mv = (ev: PointerEvent) => { cur = Math.max(15, snap(d0 + ((ev.clientY - y0) / PX) * 60)); setRz({ key: it.key, dur: cur }) }
     const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); setRz(null)
+      const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }; window.addEventListener('click', swallow, true); window.setTimeout(() => window.removeEventListener('click', swallow, true), 150)
       if (it.kind === 'task') { const t = get().tasks.find(x => x.id === it.id); if (t?.block) { patchTask(t.id, { block: { ...t.block, dur: cur } }); G.autoPushBlock(t.id) } }
       else { patchEvent(it.id, { dur: cur }); const ev = [...get().events, ...get().gEvents].find(x => x.id === it.id); if (ev?.gid && G.isConnected()) G.updateEvent(ev.gid, { ...ev, dur: cur }).catch(x => setMsg(x.message)) } }
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up)
@@ -99,7 +100,8 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
       const c = colAt(ev.clientX); if (!c) return; cur = { date: c.date, start: clampStart(yMin(ev.clientY, c.rect) - off, it.dur) }; setMv({ key: it.key, ...cur })
     }
     const end = (ok: boolean) => { window.removeEventListener('pointermove', mvf); window.removeEventListener('pointerup', up); window.removeEventListener('keydown', key); setMv(null)
-      if (moved) { dragged.current = true; window.setTimeout(() => { dragged.current = false }, 0); if (ok && cur && (cur.date !== it.date || cur.start !== it.start)) moveTo({ k: it.kind, id: it.id }, cur.date, cur.start) } }
+      if (moved) { dragged.current = true; const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }
+        window.addEventListener('click', swallow, true); window.setTimeout(() => { window.removeEventListener('click', swallow, true); dragged.current = false }, 150); if (ok && cur && (cur.date !== it.date || cur.start !== it.start)) moveTo({ k: it.kind, id: it.id }, cur.date, cur.start) } }
     const up = () => end(true); const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') end(false) }
     window.addEventListener('pointermove', mvf); window.addEventListener('pointerup', up); window.addEventListener('keydown', key)
   }
