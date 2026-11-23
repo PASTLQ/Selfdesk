@@ -52,6 +52,8 @@ for (const f of walk('src/extensions').filter(p => /\.tsx?$/.test(p) && !p.split
 const specV = readFileSync('docs/TOOL-SPEC.md', 'utf8').match(/^spec-version:\s*(\d+)/m)?.[1]
 const instV = readFileSync('docs/tools/PROJECT-INSTRUCTIONS.md', 'utf8').match(/^spec-version:\s*(\d+)/m)?.[1]
 if (!specV || specV !== instV) errors.push(`docs/TOOL-SPEC.md(v${specV})と docs/tools/PROJECT-INSTRUCTIONS.md(v${instV})の spec-version が一致しません。指示文を更新し、Project に貼り直してください`)
+const skillV = readFileSync('.claude/skills/sd-tool-builder/SKILL.md', 'utf8').match(/^spec-version:\s*(\d+)/m)?.[1]
+if (specV !== skillV) errors.push(`docs/TOOL-SPEC.md(v${specV})と .claude/skills/sd-tool-builder/SKILL.md(v${skillV})の spec-version が一致しません。スキルを更新してください`)
 
 if (errors.length) { console.error('✗ ガバナンス検査に失敗:\n' + errors.map(e => '  - ' + e).join('\n')); process.exit(1) }
 console.log('✓ ガバナンス検査 OK')
