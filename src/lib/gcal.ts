@@ -5,9 +5,11 @@ import { get, patchTask, patchEvent, setGEvents, set } from '../store'
 /* Google Identity Services (token flow) + Calendar REST API。OAuth クライアントIDは設定画面で入力。 */
 declare global { interface Window { google?: any } }
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
-const TS = 'selfdesk.gtoken'
-let token = '', exp = 0
-try { const r = JSON.parse(sessionStorage.getItem(TS) || 'null'); if (r && r.exp > Date.now()) { token = r.token; exp = r.exp } } catch { /* */ }
+const TS = 'selfdesk.gtoken', FLAG = 'selfdesk.gconnected'
+let token = '', exp = 0, timer = 0
+/* アクセストークンは約1時間で失効する(ブラウザ単体の token flow に更新トークンは無い)。端末を閉じても残るよう localStorage に置き、失効前後に無言で取り直す */
+try { const r = JSON.parse(localStorage.getItem(TS) || 'null'); if (r && r.exp > Date.now()) { token = r.token; exp = r.exp } } catch { /* */ }
+const wasConnected = () => { try { return localStorage.getItem(FLAG) === '1' } catch { return false } }
 export const isConnected = () => !!token && Date.now() < exp - 30000
 export const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone
 
@@ -19,22 +21,46 @@ function loadGIS(): Promise<void> {
     document.head.appendChild(s)
   })
 }
-export async function connect(): Promise<void> {
-  const cid = get().settings.gClientId.trim(); if (!cid) throw new Error('OAuth クライアントIDを設定してください')
-  await loadGIS()
-  await new Promise<void>((res, rej) => {
+let inflight: Promise<void> | null = null
+/** prompt: '' は同意済みなら画面なしで取れることが多い。'none' は画面を一切出さず、できなければエラー(自動更新用) */
+function requestToken(prompt: '' | 'none'): Promise<void> {
+  if (inflight) return inflight
+  const cid = get().settings.gClientId.trim(); if (!cid) return Promise.reject(new Error('OAuth クライアントIDを設定してください'))
+  inflight = loadGIS().then(() => new Promise<void>((res, rej) => {
     const c = window.google.accounts.oauth2.initTokenClient({
       client_id: cid, scope: SCOPE,
-      callback: (r: any) => { if (r.error) return rej(new Error(r.error_description || r.error)); token = r.access_token; exp = Date.now() + (Number(r.expires_in) || 3600) * 1000; try { sessionStorage.setItem(TS, JSON.stringify({ token, exp })) } catch { /* */ } res() },
+      callback: (r: any) => {
+        if (r.error) return rej(new Error(r.error_description || r.error))
+        token = r.access_token; exp = Date.now() + (Number(r.expires_in) || 3600) * 1000
+        try { localStorage.setItem(TS, JSON.stringify({ token, exp })); localStorage.setItem(FLAG, '1') } catch { /* */ }
+        schedule(); res()
+      },
       error_callback: (e: any) => rej(new Error(e?.message || e?.type || '認可に失敗しました')),
     })
-    c.requestAccessToken({ prompt: '' })
-  })
+    c.requestAccessToken({ prompt })
+  })).finally(() => { inflight = null })
+  return inflight
 }
-export function disconnect() { token = ''; exp = 0; sessionStorage.removeItem(TS); setGEvents([]) }
+export const connect = (): Promise<void> => requestToken('')
+/** 失効の5分前に、画面なしで取り直す。失敗したら黙って諦める(次に使うとき・タブに戻ったときに再試行) */
+function schedule() {
+  window.clearTimeout(timer)
+  timer = window.setTimeout(() => { requestToken('none').catch(() => { /* 対話が必要になるまで待つ */ }) }, Math.max(10000, exp - Date.now() - 5 * 60000))
+}
+/** アプリ起動時・タブに戻ったときに、失効していれば無言で取り直す */
+export function resume() {
+  if (isConnected() || !wasConnected() || !get().settings.gClientId.trim()) return
+  requestToken('none').then(() => { try { window.dispatchEvent(new Event('selfdesk:gcal')) } catch { /* */ } }).catch(() => { /* */ })
+}
+if (typeof window !== 'undefined') {
+  if (isConnected()) schedule()
+  window.setTimeout(resume, 1500)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') resume() })
+}
+export function disconnect() { token = ''; exp = 0; window.clearTimeout(timer); try { localStorage.removeItem(TS); localStorage.removeItem(FLAG) } catch { /* */ } sessionStorage.removeItem(TS); setGEvents([]) }
 
 async function api(path: string, init: RequestInit = {}) {
-  if (!isConnected()) await connect()
+  if (!isConnected()) { await requestToken('none').catch(() => connect()) }
   const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/' + path, { ...init, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...(init.headers || {}) } })
   if (r.status === 204) return null
   const j = await r.json().catch(() => ({}))

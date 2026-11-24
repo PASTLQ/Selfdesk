@@ -36,7 +36,9 @@ export function Calendar({ openTask }: { openTask: (id: string) => void }) {
   const days = mode === 'week' ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : [anchor]
   const range: [string, string] = mode === 'month' ? [monthGrid(anchor)[0], monthGrid(anchor)[41]] : [days[0], days[days.length - 1]]
 
-  useEffect(() => { if (G.isConnected()) G.fetchRange(range[0], range[1]).then(() => setMsg('')).catch(e => setMsg(String(e.message || e))) }, [range[0], range[1]]) // eslint-disable-line
+  const [gTick, setGTick] = useState(0)
+  useEffect(() => { const f = () => setGTick(n => n + 1); window.addEventListener('selfdesk:gcal', f); return () => window.removeEventListener('selfdesk:gcal', f) }, [])   // 無言の再接続が済んだら読み直す
+  useEffect(() => { if (G.isConnected()) G.fetchRange(range[0], range[1]).then(() => setMsg('')).catch(e => setMsg(String(e.message || e))) }, [range[0], range[1], gTick]) // eslint-disable-line
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = Math.max(0, (new Date().getHours() - 1 - h0) * PX) }, [mode]) // eslint-disable-line
 
   const items = useMemo(() => {
