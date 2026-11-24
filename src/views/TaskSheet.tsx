@@ -4,6 +4,7 @@ import { useStore, patchTask, delTask, moveTask, promoteProject, demoteProject }
 import { parentOptions } from '../lib/projects'
 import { hasChildren } from '../core/tree'
 import { RelatedPicker } from './RelatedPicker'
+import { DueStrip, EstSlider } from './Pickers'
 import { uid, hm, fromHm } from '../lib/date'
 import type { Task } from '../types'
 
@@ -19,11 +20,11 @@ export function TaskSheet({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="field"><label htmlFor="tt">タイトル</label><input id="tt" type="text" data-autofocus value={t.title} onChange={e => p({ title: e.target.value })} /></div>
         <div className="row">
           <div className="field grow"><label htmlFor="tp">優先度</label><div className="sel"><select id="tp" value={t.priority} onChange={e => p({ priority: Number(e.target.value) as Task['priority'] })}><option value={0}>なし</option><option value={1}>低</option><option value={2}>中</option><option value={3}>高</option></select></div></div>
-          <div className="field grow"><label htmlFor="td">期限</label><input id="td" type="date" value={t.due || ''} onChange={e => p({ due: e.target.value || undefined })} /></div>
         </div>
+        <div className="field"><label htmlFor="td">期限</label><DueStrip id="td" value={t.due} onChange={due => p({ due })} /></div>
+        <div className="field"><label htmlFor="te">見積(分){hasChildren(all, id) && <small className="muted"> 子の見積の合計が使われます</small>}</label><EstSlider id="te" value={t.est} disabled={hasChildren(all, id)} onChange={est => p({ est })} /></div>
         <div className="row">
           <div className="field grow"><label htmlFor="tj">親(プロジェクト/タスク)</label><div className="sel"><select id="tj" value={t.parent || ''} onChange={e => { if (!moveTask(id, e.target.value || undefined)) alert('自分の子孫は親にできません') }}><option value="">なし(トップ)</option>{parentOptions(all, id).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></div></div>
-          <div className="field grow"><label htmlFor="te">見積(分)</label><input id="te" type="number" min={0} step={5} value={t.est ?? ''} disabled={hasChildren(all, id)} title={hasChildren(all, id) ? '子の見積の合計が使われます' : ''} onChange={e => p({ est: e.target.value ? Number(e.target.value) : undefined })} /></div>
         </div>
         <div className="row">
           <div className="field grow"><label htmlFor="ts">開始日</label><input id="ts" type="date" value={t.start || ''} onChange={e => p({ start: e.target.value || undefined })} /></div>

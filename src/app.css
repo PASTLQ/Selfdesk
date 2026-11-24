@@ -165,3 +165,24 @@
 .qc-time { flex-wrap: nowrap; }
 .qc-time > span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qc-time input { min-width: 0; flex: none; width: 92px; padding-left: 6px; padding-right: 4px; }
+
+/* 期限の日付ストリップ・見積スライダー(Pickers.tsx) */
+.strip-wrap { display: flex; flex-direction: column; gap: var(--s2, 8px); min-width: 0 }
+.strip { display: flex; gap: 4px; overflow-x: auto; padding: 4px 2px 6px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch }
+.strip-d { flex: 0 0 auto; width: 44px; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--fg); font: inherit; cursor: pointer; scroll-snap-align: start; padding: 4px 0 }
+.strip-d b { font-size: var(--t-md); font-weight: 600; line-height: 1.2 }
+.strip-d small { font-size: var(--t-xs); color: var(--muted); line-height: 1.1 }
+.strip-d:hover { border-color: var(--edge) }
+.strip-d.sun small, .strip-d.sun b { color: var(--ng) }
+.strip-d.sat small, .strip-d.sat b { color: var(--accent) }
+.strip-d.past { opacity: .6 }
+.strip-d.mon { border-color: var(--edge) }
+.strip-d.today { box-shadow: inset 0 -2px 0 var(--accent) }
+.strip-d.on, .strip-d.on small, .strip-d.on b { background: var(--accent); color: var(--accent-fg); border-color: var(--accent) }
+.strip-d:disabled { opacity: .4; cursor: not-allowed }
+.strip.est .strip-d { width: 40px; min-height: 44px }
+.strip.est .strip-d.hour { border-color: var(--edge) }
+.strip-more { flex: 0 0 auto; border: 1px dashed var(--border); border-radius: var(--r-sm); background: transparent; color: var(--muted); font: inherit; font-size: var(--t-sm); padding: 0 12px; cursor: pointer; white-space: nowrap }
+.strip-foot { align-items: center; gap: 8px }
+.field input.strip-date[type=date] { width: auto; max-width: 150px; min-height: 28px; height: 28px; font-size: var(--t-sm) }
+.field input.strip-num[type=number] { width: 72px; flex: 0 0 auto; min-height: 28px; height: 28px; font-size: var(--t-sm) }

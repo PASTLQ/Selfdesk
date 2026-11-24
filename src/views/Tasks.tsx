@@ -7,6 +7,7 @@ import { relatedOf, relatedChoices, sameRef } from '../core/links'
 import { parseQuick } from '../lib/quick'
 import { today, addDays, fmtShort, durLabel, daysBetween } from '../lib/date'
 import { RelatedPicker } from './RelatedPicker'
+import { DueStrip, EstSlider } from './Pickers'
 import type { Ref, Task } from '../types'
 
 export function TaskRow({ t, open }: { t: Task; open: (id: string) => void }) {
@@ -99,9 +100,9 @@ export function Tasks({ open }: { open: (id: string) => void }) {
         {more && <div className="well stack" style={{ padding: 'var(--s3)', gap: 'var(--s3)' }}>
           <div className="row">
             <div className="field grow"><label htmlFor="qp">優先度</label><div className="sel"><select id="qp" value={dPri} onChange={e => setDPri(Number(e.target.value))}>{PRI.map((l, i) => <option key={i} value={i}>{l}</option>)}</select></div></div>
-            <div className="field grow"><label htmlFor="qd">期限</label><input id="qd" type="date" value={dDue} onChange={e => setDDue(e.target.value)} /></div>
-            <div className="field grow"><label htmlFor="qe">見積(分)</label><input id="qe" type="number" min={0} step={5} value={dEst} onChange={e => setDEst(e.target.value)} /></div>
           </div>
+          <div className="field"><label htmlFor="qd">期限</label><DueStrip id="qd" value={dDue || undefined} onChange={v => setDDue(v || '')} /></div>
+          <div className="field"><label htmlFor="qe">見積(分)</label><EstSlider id="qe" value={dEst ? Number(dEst) : undefined} onChange={v => setDEst(v ? String(v) : '')} /></div>
           <RelatedPicker value={dRel} onChange={setDRel} />
           <p className="small muted">本文の !2 ~45m 明日 4/30 @名前 と併用できます(本文の指定が優先)。@名前 は、同名のプロジェクト・やりたいことがあればタグとして付き、無ければラベルになります。</p>
         </div>}
